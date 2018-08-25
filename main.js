@@ -283,6 +283,7 @@ window.onload = () => {
     clearInterval(intervalLife);
     btnRun.innerHTML = 'Run';
     isRunning = false;
+    console.log(JSON.stringify(world.state()));
   }
 
   function _startLife() {
