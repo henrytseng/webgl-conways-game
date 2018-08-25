@@ -153,9 +153,9 @@ function Cell(x, y) {
   const width = 1;
   const height = 1;
   const x1 = x;
-  const x2 = x + width;
   const y1 = y;
-  const y2 = y + height;
+  const x2 = x1 + width;
+  const y2 = y1 + height;
 
   return Entity(x, y, () => {
     return new Float32Array([
@@ -171,9 +171,14 @@ function Cell(x, y) {
 
 // Application
 window.onload = () => {
-  const scene = document.getElementById("scene");
+  var scene = document.createElement('canvas');
+  scene.id     = "scene";
+  scene.width  = window.innerWidth;
+  scene.height = window.innerHeight;
+  document.body.appendChild(scene);
   const btnClear = document.getElementById("btn_clear");
   const btnRun = document.getElementById("btn_run");
+  const btnNext = document.getElementById("btn_next");
   const world = World();
   const engine = RenderEngine(scene, world);
   let cell;
@@ -202,7 +207,7 @@ window.onload = () => {
 
   function _startLife() {
     _stopLife();
-    intervalLife = setInterval(_stepLife, 500);
+    intervalLife = setInterval(_stepLife, 100);
     engine.render();
     btnRun.innerHTML = 'Stop';
     isRunning = true;
@@ -227,4 +232,15 @@ window.onload = () => {
     if(!isRunning) _startLife();
     else _stopLife();
   };
+  btnNext.onmouseup = _stepLife;
+
+  // Initial state
+  const x = 100;
+  const y = 100;
+  world.add(Cell(x+1, y));
+  world.add(Cell(x+2, y+1));
+  world.add(Cell(x, y+2));
+  world.add(Cell(x+1, y+2));
+  world.add(Cell(x+2, y+2));
+  engine.render();
 };
