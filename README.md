@@ -1,6 +1,6 @@
 # Conway's Game of Life
 
-An implementation of Conway's Game of Life using WebGL convolution filter.  This implementation uses a canvas as the world and allows a user to place cells using the mouse cursor click/drag.  
+An implementation of Conway's Game of Life using WebGL.  This implementation uses a canvas as the world and allows a user to place cells using the mouse cursor click/drag.  
 
 The Rules
 
