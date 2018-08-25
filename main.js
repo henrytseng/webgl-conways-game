@@ -99,9 +99,11 @@ function World(engine) {
 
     clear: () => {
       const itr = _collection[Symbol.iterator]();
+      let key;
       let i = itr.next();
       while(!i.done) {
-        _collection.delete(i[1]);
+        key = i.value[0];
+        _collection.delete(key);
         i = itr.next();
       }
     },
@@ -167,23 +169,34 @@ function Cell(x, y) {
   });
 }
 
+// Application
 window.onload = () => {
   const scene = document.getElementById("scene");
   const btnClear = document.getElementById("btn_clear");
   const btnRun = document.getElementById("btn_run");
   const world = World();
   const engine = RenderEngine(scene, world);
-
   let cell;
-  scene.onmousemove = (e) => {
-    cell = Cell(e.x, e.y);
+  let isDrawing = false;
+
+  function _placeAt(x, y) {
+    cell = Cell(x, y);
     if(!world.has(cell)) {
       world.add(cell);
       engine.render();
     }
+  }
+
+  scene.onmouseup = (e) => isDrawing = false;
+  scene.onmousedown = (e) => {
+    isDrawing = true;
+    _placeAt(e.x, e.y);
+  }
+  scene.onmousemove = (e) => {
+    if(isDrawing) _placeAt(e.x, e.y);
   };
 
-  btnClear.onmouseup = () => {
+  btnClear.onmouseup = (e) => {
     world.clear();
     engine.render();
   };
