@@ -178,6 +178,8 @@ window.onload = () => {
   const engine = RenderEngine(scene, world);
   let cell;
   let isDrawing = false;
+  let isRunning = false;
+  let intervalLife;
 
   function _placeAt(x, y) {
     cell = Cell(x, y);
@@ -187,6 +189,26 @@ window.onload = () => {
     }
   }
 
+  function _stepLife() {
+    console.log('step');
+
+  }
+
+  function _stopLife() {
+    clearInterval(intervalLife);
+    btnRun.innerHTML = 'Run';
+    isRunning = false;
+  }
+
+  function _startLife() {
+    _stopLife();
+    intervalLife = setInterval(_stepLife, 500);
+    engine.render();
+    btnRun.innerHTML = 'Stop';
+    isRunning = true;
+  }
+
+  // Mouse cell placement
   scene.onmouseup = (e) => isDrawing = false;
   scene.onmousedown = (e) => {
     isDrawing = true;
@@ -196,8 +218,13 @@ window.onload = () => {
     if(isDrawing) _placeAt(e.x, e.y);
   };
 
+  // Control buttons
   btnClear.onmouseup = (e) => {
     world.clear();
     engine.render();
+  };
+  btnRun.onmouseup = (e) => {
+    if(!isRunning) _startLife();
+    else _stopLife();
   };
 };
