@@ -1,14 +1,21 @@
 "use strict";
 
+const cellWidth = 10;
+const cellHeight = cellWidth;
+
 function RenderEngine(canvas, world) {
-  const gl = canvas.getContext("webgl");
-  if(!gl) return;
+  const gl = canvas.getContext("webgl", {antialias: false});
+  if(!gl) {
+    document.write('WebGL is required for this example to work.');
+    return;
+  }
 
   // setup GLSL program
   const program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
 
   // look up where the vertex data needs to go.
   const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
+  const texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
 
   // look up uniform locations
   const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
@@ -16,11 +23,7 @@ function RenderEngine(canvas, world) {
 
   // Create a buffer to put three 2d clip space points in
   const positionBuffer = gl.createBuffer();
-
-  // Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = positionBuffer)
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-  webglUtils.resizeCanvasToDisplaySize(gl.canvas);
 
   // Tell WebGL how to convert from clip space to pixels
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -40,19 +43,22 @@ function RenderEngine(canvas, world) {
   const normalize = false; // don't normalize the data
   const stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
   const offset = 0;        // start at the beginning of the buffer
-  gl.vertexAttribPointer(
-      positionAttributeLocation, size, type, normalize, stride, offset)
+  gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset)
 
   // set the resolution
   gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
 
+  /**
+   * Clear the canvas
+   */
   function _clear() {
-
-    // Clear the canvas
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
   }
 
+  /**
+   * Render the world
+   */
   function _render() {
     const itr = world.collection();
 
@@ -69,7 +75,7 @@ function RenderEngine(canvas, world) {
       gl.bufferData(gl.ARRAY_BUFFER, entity.vertices(), gl.STATIC_DRAW);
 
       // Set a random color.
-      gl.uniform4f(colorUniformLocation, .5, .5, .5, 1);
+      gl.uniform4f(colorUniformLocation, 0, 0, 0, 1);
 
       // Draw the rectangle.
       var primitiveType = gl.TRIANGLES;
@@ -150,14 +156,12 @@ function Entity(x, y, getVertices) {
 }
 
 function Cell(x, y) {
-  const width = 1;
-  const height = 1;
-  const x1 = x;
-  const y1 = y;
-  const x2 = x1 + width;
-  const y2 = y1 + height;
+  const x1 = x * cellWidth;
+  const y1 = y * cellHeight;
+  const x2 = x1 + cellWidth;
+  const y2 = y1 + cellHeight;
 
-  return Entity(x, y, () => {
+  return Entity(x1, y1, () => {
     return new Float32Array([
        x1, y1,
        x2, y1,
@@ -171,7 +175,7 @@ function Cell(x, y) {
 
 // Application
 window.onload = () => {
-  var scene = document.createElement('canvas');
+  const scene = document.createElement('canvas');
   scene.id     = "scene";
   scene.width  = window.innerWidth;
   scene.height = window.innerHeight;
@@ -187,7 +191,9 @@ window.onload = () => {
   let intervalLife;
 
   function _placeAt(x, y) {
-    cell = Cell(x, y);
+    const x1 = Math.floor(x / cellWidth);
+    const y1 = Math.floor(y / cellHeight);
+    cell = Cell(x1, y1);
     if(!world.has(cell)) {
       world.add(cell);
       engine.render();
@@ -235,12 +241,12 @@ window.onload = () => {
   btnNext.onmouseup = _stepLife;
 
   // Initial state
-  const x = 100;
-  const y = 100;
-  world.add(Cell(x+1, y));
-  world.add(Cell(x+2, y+1));
-  world.add(Cell(x, y+2));
-  world.add(Cell(x+1, y+2));
-  world.add(Cell(x+2, y+2));
+  const x = Math.floor(100.0 / cellWidth);
+  const y = Math.floor(100.0 / cellHeight);
+  world.add(Cell(x+1.0, y));
+  world.add(Cell(x+2.0, y+1.0));
+  world.add(Cell(x, y+2.0));
+  world.add(Cell(x+1.0, y+2.0));
+  world.add(Cell(x+2.0, y+2.0));
   engine.render();
 };

@@ -24,11 +24,26 @@
   <!-- fragment shader -->
   <script id="2d-fragment-shader" type="x-shader/x-fragment">
   precision mediump float;
-
-  uniform vec4 u_color;
-
+  // our texture
+  uniform sampler2D u_image;
+  uniform vec2 u_textureSize;
+  uniform float u_kernel[9];
+  uniform float u_kernelWeight;
+  // the texCoords passed in from the vertex shader.
+  varying vec2 v_texCoord;
   void main() {
-     gl_FragColor = u_color;
+     vec2 onePixel = vec2(1.0, 1.0) / u_textureSize;
+     vec4 colorSum =
+         texture2D(u_image, v_texCoord + onePixel * vec2(-1, -1)) * u_kernel[0] +
+         texture2D(u_image, v_texCoord + onePixel * vec2( 0, -1)) * u_kernel[1] +
+         texture2D(u_image, v_texCoord + onePixel * vec2( 1, -1)) * u_kernel[2] +
+         texture2D(u_image, v_texCoord + onePixel * vec2(-1,  0)) * u_kernel[3] +
+         texture2D(u_image, v_texCoord + onePixel * vec2( 0,  0)) * u_kernel[4] +
+         texture2D(u_image, v_texCoord + onePixel * vec2( 1,  0)) * u_kernel[5] +
+         texture2D(u_image, v_texCoord + onePixel * vec2(-1,  1)) * u_kernel[6] +
+         texture2D(u_image, v_texCoord + onePixel * vec2( 0,  1)) * u_kernel[7] +
+         texture2D(u_image, v_texCoord + onePixel * vec2( 1,  1)) * u_kernel[8] ;
+     gl_FragColor = vec4((colorSum / u_kernelWeight).rgb, 1);
   }
   </script>
   <!--
@@ -46,6 +61,7 @@
     <button id="btn_clear">Clear</button>
     <button id="btn_run">Run</button>
     <button id="btn_next">Next</button>
+    <!-- <img src="data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="> -->
   </div>
 
   <script src="webgl-utils.js"></script>
