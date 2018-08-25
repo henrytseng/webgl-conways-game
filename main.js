@@ -189,6 +189,7 @@ function Cell(x, y) {
 
 // Application
 window.onload = () => {
+  const localStorage = window.localStorage;
   const scene = document.createElement('canvas');
   scene.id     = "scene";
   scene.width  = window.innerWidth;
@@ -202,19 +203,19 @@ window.onload = () => {
   const world = World();
   const engine = RenderEngine(scene, world);
   let cell;
-  let isDrawing = false;
+  let isDrawing = null;
   let isRunning = false;
   let intervalLife;
   let speed = inputSpeed.value;
 
-  function _placeAt(x, y) {
-    const x1 = Math.floor(x / cellWidth);
-    const y1 = Math.floor(y / cellHeight);
-    cell = Cell(x1, y1);
-    if(!world.has(x1, y1)) {
+  function _placeAt(x, y, isCreate) {
+    cell = Cell(x, y);
+    if((isDrawing === true || isCreate) && !world.has(x, y)) {
       world.add(cell);
-      engine.render();
+    } else if(isDrawing === false) {
+      world.remove(x, y);
     }
+    engine.render();
     return cell;
   }
 
@@ -293,19 +294,29 @@ window.onload = () => {
   }
 
   // Mouse cell placement
-  scene.onmouseup = (e) => isDrawing = false;
+  scene.onmouseup = (e) => {
+    isDrawing = null;
+    localStorage.setItem("world.state", JSON.stringify(world.state()));
+  };
   scene.onmousedown = (e) => {
-    isDrawing = true;
-    _placeAt(e.x, e.y);
+    const x1 = Math.floor(e.x / cellWidth);
+    const y1 = Math.floor(e.y / cellHeight);
+    isDrawing = !world.has(x1, y1);
+    _placeAt(x1, y1, true);
   }
   scene.onmousemove = (e) => {
-    if(isDrawing) _placeAt(e.x, e.y);
+    const x1 = Math.floor(e.x / cellWidth);
+    const y1 = Math.floor(e.y / cellHeight);
+    if(isDrawing !== null) {
+      _placeAt(x1, y1);
+    }
   };
 
   // Controls
   btnClear.onmouseup = (e) => {
     world.clear();
     engine.render();
+    localStorage.removeItem("world.state")
   };
   btnRun.onmouseup = (e) => {
     if(!isRunning) _startLife();
@@ -330,11 +341,17 @@ window.onload = () => {
   };
 
   // Initial state
-  const x = Math.floor(100.0);
-  const y = Math.floor(100.0);
-  _placeAt(x+1.0*cellWidth, y);
-  _placeAt(x+2.0*cellWidth, y+1.0*cellHeight);
-  _placeAt(x, y+2.0*cellHeight);
-  _placeAt(x+1.0*cellWidth, y+2.0*cellHeight);
-  _placeAt(x+2.0*cellWidth, y+2.0*cellHeight);
+  const initX = Math.floor(100.0/cellWidth);
+  const initY = Math.floor(100.0/cellHeight);
+  const storedState = JSON.parse(localStorage.getItem("world.state"));
+  const initialState = storedState || [
+    [initX+1, initY],
+    [initX+2, initY+1],
+    [initX, initY+2],
+    [initX+1, initY+2],
+    [initX+2, initY+2],
+  ];
+  initialState.forEach((coords) => {
+    _placeAt(coords[0], coords[1], true);
+  });
 };
