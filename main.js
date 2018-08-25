@@ -1,26 +1,21 @@
 "use strict";
 
-function main() {
-  // Get A WebGL context
-  /** @type {HTMLCanvasElement} */
-  var canvas = document.getElementById("scene");
-  var gl = canvas.getContext("webgl");
-  if (!gl) {
-    return;
-  }
+function RenderEngine(canvas, world) {
+  const gl = canvas.getContext("webgl");
+  if(!gl) return;
 
   // setup GLSL program
-  var program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
+  const program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
 
   // look up where the vertex data needs to go.
-  var positionAttributeLocation = gl.getAttribLocation(program, "a_position");
+  const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
 
   // look up uniform locations
-  var resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
-  var colorUniformLocation = gl.getUniformLocation(program, "u_color");
+  const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+  const colorUniformLocation = gl.getUniformLocation(program, "u_color");
 
   // Create a buffer to put three 2d clip space points in
-  var positionBuffer = gl.createBuffer();
+  const positionBuffer = gl.createBuffer();
 
   // Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = positionBuffer)
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -29,10 +24,6 @@ function main() {
 
   // Tell WebGL how to convert from clip space to pixels
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
-  // Clear the canvas
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
 
   // Tell it to use our program (pair of shaders)
   gl.useProgram(program);
@@ -44,58 +35,156 @@ function main() {
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
   // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-  var size = 2;          // 2 components per iteration
-  var type = gl.FLOAT;   // the data is 32bit floats
-  var normalize = false; // don't normalize the data
-  var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
-  var offset = 0;        // start at the beginning of the buffer
+  const size = 2;          // 2 components per iteration
+  const type = gl.FLOAT;   // the data is 32bit floats
+  const normalize = false; // don't normalize the data
+  const stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
+  const offset = 0;        // start at the beginning of the buffer
   gl.vertexAttribPointer(
       positionAttributeLocation, size, type, normalize, stride, offset)
 
   // set the resolution
   gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
 
-  // draw 50 random rectangles in random colors
-  for (var ii = 0; ii < 50; ++ii) {
-    // Setup a random rectangle
-    // This will write to positionBuffer because
-    // its the last thing we bound on the ARRAY_BUFFER
-    // bind point
-    var x = randomInt(300);
-    var y = randomInt(300);
-    setRectangle(
-        gl, x, y, 10, 10);
+  function _clear() {
 
-    // Set a random color.
-    gl.uniform4f(colorUniformLocation, Math.random(), Math.random(), Math.random(), 1);
+    // Clear the canvas
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  }
 
-    // Draw the rectangle.
-    var primitiveType = gl.TRIANGLES;
-    var offset = 0;
-    var count = 6;
-    gl.drawArrays(primitiveType, offset, count);
+  function _render() {
+    const itr = world.collection();
+
+    // Clear grid for rendering
+    _clear();
+
+    let entity;
+    let i = itr.next();
+    while(!i.done) {
+      entity = i.value[1];
+      if(!entity) break;
+
+      // Load vertices
+      gl.bufferData(gl.ARRAY_BUFFER, entity.vertices(), gl.STATIC_DRAW);
+
+      // Set a random color.
+      gl.uniform4f(colorUniformLocation, .5, .5, .5, 1);
+
+      // Draw the rectangle.
+      var primitiveType = gl.TRIANGLES;
+      var offset = 0;
+      var count = 6;
+      gl.drawArrays(primitiveType, offset, count);
+
+      i = itr.next();
+    }
+  }
+
+  return {
+    clear: _clear,
+
+    render: _render
+  };
+}
+
+function World(engine) {
+  const _collection = new Map();
+
+  function _getKey(entity) {
+    return Symbol.for([entity.x, entity.y]);
+  }
+
+  return {
+
+    clear: () => {
+      const itr = _collection[Symbol.iterator]();
+      let i = itr.next();
+      while(!i.done) {
+        _collection.delete(i[1]);
+        i = itr.next();
+      }
+    },
+
+    add: (entity) => {
+      if(!entity) return;
+      _collection.set(_getKey(entity), entity);
+      return entity;
+    },
+
+    has: (entity) => {
+      const key = _getKey(entity);
+      return _collection.has(key);
+    },
+
+    remove: (entity) => {
+      _collection.delete(entity);
+      return entity;
+    },
+
+    collection: () => {
+      return _collection[Symbol.iterator]();
+    }
+
   }
 }
 
-// Returns a random integer from 0 to range - 1.
-function randomInt(range) {
-  return Math.floor(Math.random() * range);
+function Entity(x, y, getVertices) {
+  return {
+
+    x: x,
+
+    y: y,
+
+    coords: () => {
+      return [x, y];
+    },
+
+    /**
+     * Builds tessellated vertices
+     */
+    vertices: getVertices
+  }
 }
 
-// Fill the buffer with the values that define a rectangle.
-function setRectangle(gl, x, y, width, height) {
-  var x1 = x;
-  var x2 = x + width;
-  var y1 = y;
-  var y2 = y + height;
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-     x1, y1,
-     x2, y1,
-     x1, y2,
-     x1, y2,
-     x2, y1,
-     x2, y2,
-  ]), gl.STATIC_DRAW);
+function Cell(x, y) {
+  const width = 1;
+  const height = 1;
+  const x1 = x;
+  const x2 = x + width;
+  const y1 = y;
+  const y2 = y + height;
+
+  return Entity(x, y, () => {
+    return new Float32Array([
+       x1, y1,
+       x2, y1,
+       x1, y2,
+       x1, y2,
+       x2, y1,
+       x2, y2,
+    ]);
+  });
 }
 
-main();
+window.onload = () => {
+  const scene = document.getElementById("scene");
+  const btnClear = document.getElementById("btn_clear");
+  const btnRun = document.getElementById("btn_run");
+  const world = World();
+  const engine = RenderEngine(scene, world);
+
+  let cell;
+  scene.onmousemove = (e) => {
+    cell = Cell(e.x, e.y);
+    if(!world.has(cell)) {
+      world.add(cell);
+      engine.render();
+    }
+  };
+
+  btnClear.onmouseup = () => {
+    world.clear();
+    engine.render();
+  };
+};

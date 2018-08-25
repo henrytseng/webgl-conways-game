@@ -1,6 +1,6 @@
 <html>
 <head>
-  <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="main.css" type="text/css">
   <script>document.write('<script src="http://' + (location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1"></' + 'script>')</script>
   <!-- vertex shader -->
   <script id="2d-vertex-shader" type="x-shader/x-vertex">
@@ -42,7 +42,12 @@
 
 </head>
 <body>
+  <div id="controls">
+    <button id="btn_clear">Clear</button>
+    <button id="btn_run">Run</button>
+  </div>
   <canvas id="scene"></canvas>
+
   <script src="webgl-utils.js"></script>
   <script src="main.js"></script>
 </body>

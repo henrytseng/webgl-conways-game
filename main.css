@@ -1,8 +1,24 @@
 body {
   margin: 0;
 }
-canvas {
+#scene {
   width: 100vw;
   height: 100vh;
   display: block;
+  z-index: 1;
+}
+
+#controls {
+  position: fixed;
+  z-index: 10;
+  top: 5px;
+  left: 5px;
+  border: 1px #efefef solid;
+  padding: 6px 10px;
+}
+
+button {
+  color: #333;
+  font-size: 14px;
+  font-family: sans-serif;
 }
