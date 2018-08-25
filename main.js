@@ -342,15 +342,17 @@ window.onload = () => {
   };
 
   // Initial state
-  const initX = Math.floor(100.0/cellWidth);
-  const initY = Math.floor(100.0/cellHeight);
+  const initX = Math.floor(500.0/cellWidth);
+  const initY = Math.floor(200.0/cellHeight);
   const storedState = JSON.parse(localStorage.getItem("world.state"));
   const initialState = storedState || [
     [initX+1, initY],
-    [initX+2, initY+1],
     [initX, initY+2],
     [initX+1, initY+2],
-    [initX+2, initY+2],
+    [initX+3, initY+1],
+    [initX+4, initY+2],
+    [initX+5, initY+2],
+    [initX+6, initY+2],
   ];
   initialState.forEach((coords) => {
     _placeAt(coords[0], coords[1], true);
