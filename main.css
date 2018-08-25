@@ -1,5 +1,7 @@
 body {
   margin: 0;
+  font-size: 14px;
+  font-family: sans-serif;
 }
 #scene {
   position: fixed;

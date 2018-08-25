@@ -1,7 +1,7 @@
 "use strict";
 
-const cellWidth = 3;
-const cellHeight = cellWidth;
+var cellWidth = 8;
+var cellHeight = cellWidth;
 
 function RenderEngine(canvas, world) {
   const gl = canvas.getContext("webgl", {antialias: false});
@@ -159,7 +159,7 @@ function Entity(x, y, getVertices) {
     y: y,
 
     coords: () => {
-      return {x: x, y: y};
+      return [x, y];
     },
 
     /**
@@ -198,6 +198,7 @@ window.onload = () => {
   const btnRun = document.getElementById("btn_run");
   const btnNext = document.getElementById("btn_next");
   const inputSpeed = document.getElementById("input_speed");
+  const inputSize = document.getElementById("input_size");
   const world = World();
   const engine = RenderEngine(scene, world);
   let cell;
@@ -312,11 +313,20 @@ window.onload = () => {
   };
   btnNext.onmouseup = _stepLife;
   inputSpeed.onchange = (e) => {
-    speed = inputSpeed.value;
+    speed = Math.max(1, parseInt(inputSpeed.value));
     if(isRunning) {
       _stepLife();
       _startLife();
     }
+  };
+  inputSize.onchange = (e) => {
+    cellWidth = cellHeight = Math.max(1, parseInt(inputSize.value));
+    const list = world.state();
+    world.clear();
+    list.forEach((coords) => {
+      world.add(Cell(coords[0], coords[1]));
+    });
+    engine.render();
   };
 
   // Initial state
