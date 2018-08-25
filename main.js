@@ -202,11 +202,17 @@ window.onload = () => {
   const inputSize = document.getElementById("input_size");
   const world = World();
   const engine = RenderEngine(scene, world);
+
+  // Inital parameters
+  if(localStorage.getItem('speed')) inputSpeed.value = localStorage.getItem('speed');
+  if(localStorage.getItem('cellWidth')) inputSize.value = localStorage.getItem('cellWidth');
+
   let cell;
   let isDrawing = null;
   let isRunning = false;
   let intervalLife;
-  let speed = inputSpeed.value;
+  let speed = Math.max(1, parseInt(inputSpeed.value));
+  cellWidth = cellHeight = Math.max(1, parseInt(inputSize.value));
 
   function _placeAt(x, y, isCreate) {
     cell = Cell(x, y);
@@ -326,6 +332,7 @@ window.onload = () => {
   btnNext.onmouseup = _stepLife;
   inputSpeed.onchange = (e) => {
     speed = Math.max(1, parseInt(inputSpeed.value));
+    localStorage.setItem("speed", speed);
     if(isRunning) {
       _stepLife();
       _startLife();
@@ -333,6 +340,7 @@ window.onload = () => {
   };
   inputSize.onchange = (e) => {
     cellWidth = cellHeight = Math.max(1, parseInt(inputSize.value));
+    localStorage.setItem("cellWidth", cellWidth);
     const list = world.state();
     world.clear();
     list.forEach((coords) => {
