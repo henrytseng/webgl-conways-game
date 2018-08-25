@@ -1,6 +1,6 @@
 "use strict";
 
-const cellWidth = 10;
+const cellWidth = 8;
 const cellHeight = cellWidth;
 
 function RenderEngine(canvas, world) {
@@ -120,24 +120,38 @@ function World(engine) {
       return entity;
     },
 
-    has: (entity) => {
-      const key = _getKey(entity);
-      return _collection.has(key);
+    get: (x, y) => {
+      return _collection.get(Symbol.for([x, y]));
     },
 
-    remove: (entity) => {
-      _collection.delete(entity);
-      return entity;
+    has: (x, y) => {
+      return !!_collection.get(Symbol.for([x, y]));
+    },
+
+    remove: (x, y) => {
+      _collection.delete(Symbol.for([x, y]));
     },
 
     collection: () => {
       return _collection[Symbol.iterator]();
+    },
+
+    state: () => {
+      const list = [];
+      const itr = _collection[Symbol.iterator]();
+      let i = itr.next();
+      while(!i.done) {
+        list.push(i.value[1].coords());
+        i = itr.next();
+      }
+      return list;
     }
 
   }
 }
 
 function Entity(x, y, getVertices) {
+
   return {
 
     x: x,
@@ -145,7 +159,7 @@ function Entity(x, y, getVertices) {
     y: y,
 
     coords: () => {
-      return [x, y];
+      return {x: x, y: y};
     },
 
     /**
@@ -161,7 +175,7 @@ function Cell(x, y) {
   const x2 = x1 + cellWidth;
   const y2 = y1 + cellHeight;
 
-  return Entity(x1, y1, () => {
+  return Entity(x, y, () => {
     return new Float32Array([
        x1, y1,
        x2, y1,
@@ -194,15 +208,68 @@ window.onload = () => {
     const x1 = Math.floor(x / cellWidth);
     const y1 = Math.floor(y / cellHeight);
     cell = Cell(x1, y1);
-    if(!world.has(cell)) {
+    if(!world.has(x1, y1)) {
       world.add(cell);
       engine.render();
     }
+    return cell;
   }
 
   function _stepLife() {
     console.log('step');
+    // console.log(scene.toDataURL());
 
+    // TODO use change to use convolution filter
+
+    // Count neighbors
+    const neighborCounts = new Map();
+
+    // Build counts
+    const ii = world.collection()
+    let i = ii.next();
+    while(!i.done) {
+      let cell = i.value[1];
+      [
+        [-1,-1],
+        [0,-1],
+        [1,-1],
+        [1,0],
+        [1,1],
+        [0,1],
+        [-1,1],
+        [-1,0],
+      ].forEach((coords) => {
+        let x = cell.x + coords[0];
+        let y = cell.y + coords[1];
+        let key = Symbol.for([x, y]);
+        let count = neighborCounts.get(key) || 0;
+        count++;
+        neighborCounts.set(key, count);
+      });
+      i = ii.next();
+    }
+
+    // Set next stage
+    let nn = neighborCounts[Symbol.iterator]();
+    let n = nn.next();
+    while(!n.done) {
+      let key = n.value[0];
+      let count = n.value[1];
+      let coords = Symbol.keyFor(key).split(',').map((i) => parseInt(i));
+      let cell = Cell.apply(null, coords);
+
+      if(world.has(coords[0], coords[1])) {
+        if(count <= 1 || count >= 4) {
+          world.remove(coords[0], coords[1]);
+        }
+      } else {
+        if(count == 3) {
+          world.add(Cell(coords[0], coords[1]));
+        }
+      }
+      n = nn.next()
+    }
+    engine.render();
   }
 
   function _stopLife() {
@@ -241,12 +308,12 @@ window.onload = () => {
   btnNext.onmouseup = _stepLife;
 
   // Initial state
-  const x = Math.floor(100.0 / cellWidth);
-  const y = Math.floor(100.0 / cellHeight);
-  world.add(Cell(x+1.0, y));
-  world.add(Cell(x+2.0, y+1.0));
-  world.add(Cell(x, y+2.0));
-  world.add(Cell(x+1.0, y+2.0));
-  world.add(Cell(x+2.0, y+2.0));
-  engine.render();
+  const x = Math.floor(100.0);
+  const y = Math.floor(100.0);
+  _placeAt(x+1.0*cellWidth, y);
+  _placeAt(x+2.0*cellWidth, y+1.0*cellHeight);
+  _placeAt(x, y+2.0*cellHeight);
+  _placeAt(x+1.0*cellWidth, y+2.0*cellHeight);
+  _placeAt(x+2.0*cellWidth, y+2.0*cellHeight);
+  console.log(world.state());
 };
