@@ -212,7 +212,7 @@ window.onload = () => {
   let isRunning = false;
   let intervalLife;
   let speed = Math.max(1, parseInt(inputSpeed.value));
-  cellWidth = cellHeight = Math.max(1, parseInt(inputSize.value));
+  cellWidth = cellHeight = Math.max(1, parseFloat(inputSize.value));
 
   function _placeAt(x, y, isCreate) {
     cell = Cell(x, y);
@@ -339,7 +339,7 @@ window.onload = () => {
     }
   };
   inputSize.onchange = (e) => {
-    cellWidth = cellHeight = Math.max(1, parseInt(inputSize.value));
+    cellWidth = cellHeight = Math.max(1, parseFloat(inputSize.value));
     localStorage.setItem("cellWidth", cellWidth);
     const list = world.state();
     world.clear();
