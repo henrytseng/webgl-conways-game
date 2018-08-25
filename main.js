@@ -1,6 +1,6 @@
 "use strict";
 
-const cellWidth = 8;
+const cellWidth = 3;
 const cellHeight = cellWidth;
 
 function RenderEngine(canvas, world) {
@@ -197,12 +197,14 @@ window.onload = () => {
   const btnClear = document.getElementById("btn_clear");
   const btnRun = document.getElementById("btn_run");
   const btnNext = document.getElementById("btn_next");
+  const inputSpeed = document.getElementById("input_speed");
   const world = World();
   const engine = RenderEngine(scene, world);
   let cell;
   let isDrawing = false;
   let isRunning = false;
   let intervalLife;
+  let speed = inputSpeed.value;
 
   function _placeAt(x, y) {
     const x1 = Math.floor(x / cellWidth);
@@ -216,8 +218,6 @@ window.onload = () => {
   }
 
   function _stepLife() {
-    console.log('step');
-    // console.log(scene.toDataURL());
 
     // TODO use change to use convolution filter
 
@@ -229,6 +229,11 @@ window.onload = () => {
     let i = ii.next();
     while(!i.done) {
       let cell = i.value[1];
+
+      // Initialize each cell
+      neighborCounts.set(i.value[0], neighborCounts.get(i.value[0]) || 0);
+
+      // Add count to neighbors
       [
         [-1,-1],
         [0,-1],
@@ -239,9 +244,9 @@ window.onload = () => {
         [-1,1],
         [-1,0],
       ].forEach((coords) => {
-        let x = cell.x + coords[0];
-        let y = cell.y + coords[1];
-        let key = Symbol.for([x, y]);
+        const x = cell.x + coords[0];
+        const y = cell.y + coords[1];
+        const key = Symbol.for([x, y]);
         let count = neighborCounts.get(key) || 0;
         count++;
         neighborCounts.set(key, count);
@@ -280,7 +285,7 @@ window.onload = () => {
 
   function _startLife() {
     _stopLife();
-    intervalLife = setInterval(_stepLife, 100);
+    intervalLife = setInterval(_stepLife, speed);
     engine.render();
     btnRun.innerHTML = 'Stop';
     isRunning = true;
@@ -296,7 +301,7 @@ window.onload = () => {
     if(isDrawing) _placeAt(e.x, e.y);
   };
 
-  // Control buttons
+  // Controls
   btnClear.onmouseup = (e) => {
     world.clear();
     engine.render();
@@ -306,6 +311,13 @@ window.onload = () => {
     else _stopLife();
   };
   btnNext.onmouseup = _stepLife;
+  inputSpeed.onchange = (e) => {
+    speed = inputSpeed.value;
+    if(isRunning) {
+      _stepLife();
+      _startLife();
+    }
+  };
 
   // Initial state
   const x = Math.floor(100.0);
@@ -315,5 +327,4 @@ window.onload = () => {
   _placeAt(x, y+2.0*cellHeight);
   _placeAt(x+1.0*cellWidth, y+2.0*cellHeight);
   _placeAt(x+2.0*cellWidth, y+2.0*cellHeight);
-  console.log(world.state());
 };
