@@ -15,6 +15,11 @@ body {
   left: 5px;
   border: 1px #efefef solid;
   padding: 6px 10px;
+  user-select: none;
+        -moz-user-select: none;
+        -khtml-user-select: none;
+        -webkit-user-select: none;
+        -o-user-select: none;
 }
 
 button {
