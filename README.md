@@ -16,7 +16,7 @@ The Rules
 
 ## Usage
 
-To run use a web server.  For example,
+To run use a web server.  For example, with nodejs installed use: 
 
 ```
 $ npm install hostr
