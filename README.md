@@ -2,6 +2,8 @@
 
 An implementation of Conway's Game of Life using WebGL.  This implementation uses a canvas as the world and allows a user to place cells using the mouse cursor click/drag.  
 
+[See it here](https://henrytseng.github.io/webgl-conways-game/).
+
 The Rules
 
 * For a space that is 'populated':
