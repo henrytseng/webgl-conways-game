@@ -1,0 +1,21 @@
+{
+  "name": "webgl-conways-game",
+  "version": "1.0.0",
+  "description": "An implementation of Conway's Game of Life using WebGL.  This implementation uses a canvas as the world and allows a user to place cells using the mouse cursor click/drag.",
+  "main": "main.js",
+  "dependencies": {},
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/henrytseng/webgl-conways-game.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/henrytseng/webgl-conways-game/issues"
+  },
+  "homepage": "https://github.com/henrytseng/webgl-conways-game#readme"
+}

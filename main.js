@@ -2,14 +2,13 @@
 
 var cellWidth = 8;
 var cellHeight = cellWidth;
+const scene = document.createElement('canvas');
+const gl = scene.getContext("webgl", {antialias: false, preserveDrawingBuffer: false});
+if(!gl) {
+  document.write('WebGL is required for this example to work.');
+}
 
-function RenderEngine(canvas, world) {
-  const gl = canvas.getContext("webgl", {antialias: false});
-  if(!gl) {
-    document.write('WebGL is required for this example to work.');
-    return;
-  }
-
+function RenderEngine(world) {
   // setup GLSL program
   const program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
 
@@ -82,13 +81,22 @@ function RenderEngine(canvas, world) {
       var offset = 0;
       var count = 6;
       gl.drawArrays(primitiveType, offset, count);
-
       i = itr.next();
     }
   }
 
+  function _read(x, y) {
+    const format = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
+    const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
+    const pixelBuffer = new Uint8Array(4);
+    gl.readPixels(x * cellWidth, y * cellWidth, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
+    console.log(x, y, pixelBuffer);  
+  }
+
   return {
     clear: _clear,
+
+    read: _read,
 
     render: _render
   };
@@ -190,7 +198,6 @@ function Cell(x, y) {
 // Application
 window.onload = () => {
   const localStorage = window.localStorage;
-  const scene = document.createElement('canvas');
   scene.id     = "scene";
   scene.width  = window.innerWidth;
   scene.height = window.innerHeight;
@@ -201,7 +208,7 @@ window.onload = () => {
   const inputSpeed = document.getElementById("input_speed");
   const inputSize = document.getElementById("input_size");
   const world = World();
-  const engine = RenderEngine(scene, world);
+  const engine = RenderEngine(world);
 
   // Inital parameters
   if(localStorage.getItem('speed')) inputSpeed.value = localStorage.getItem('speed');
@@ -222,6 +229,7 @@ window.onload = () => {
       world.remove(x, y);
     }
     engine.render();
+    engine.read(x, y);
     return cell;
   }
 
