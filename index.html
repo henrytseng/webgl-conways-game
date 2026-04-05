@@ -2,30 +2,57 @@
 <head>
   <link rel="stylesheet" href="main.css" type="text/css">
   <script>document.write('<script src="http://' + (location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1"></' + 'script>')</script>
-  <!-- vertex shader -->
-  <script id="2d-vertex-shader" type="x-shader/x-vertex">
-  attribute vec2 a_position;
-  attribute vec2 a_texCoord;
-  uniform vec2 u_resolution;
-  varying vec2 v_texCoord;
-  void main() {
-     // convert the rectangle from pixels to 0.0 to 1.0
-     vec2 zeroToOne = a_position / u_resolution;
-     // convert from 0->1 to 0->2
-     vec2 zeroToTwo = zeroToOne * 2.0;
-     // convert from 0->2 to -1->+1 (clipspace)
-     vec2 clipSpace = zeroToTwo - 1.0;
-     gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-     // pass the texCoord to the fragment shader
-     // The GPU will interpolate this value between points.
-     v_texCoord = a_texCoord;
-  }
-  </script>
-  <!-- fragment shader -->
-  <script id="2d-fragment-shader" type="x-shader/x-fragment">
-    precision mediump float;
+  <!-- passthrough vertex shader for fullscreen quad (clip-space positions) -->
+  <script id="vert-shader" type="x-shader/x-vertex">
+    attribute vec2 a_position;
     void main() {
-       gl_FragColor = vec4(1, 0, 0.5, 1);
+      gl_Position = vec4(a_position, 0, 1);
+    }
+  </script>
+
+  <!-- compute fragment shader: one Game of Life step via 3x3 convolution + clamping -->
+  <script id="compute-frag-shader" type="x-shader/x-fragment">
+    precision mediump float;
+    uniform sampler2D u_state;
+    uniform vec2 u_grid_size;
+
+    void main() {
+      vec2 cell = floor(gl_FragCoord.xy);
+
+      // 3x3 convolution: sum all 9 cells (including center) with toroidal wrapping
+      float s = 0.0;
+      for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+          vec2 n = mod(cell + vec2(float(dx), float(dy)) + u_grid_size, u_grid_size);
+          s += texture2D(u_state, (n + 0.5) / u_grid_size).r;
+        }
+      }
+
+      // s is the sum of all 9 cells including center (c).
+      // Conway's rules: a cell is alive next gen if s==3 (birth or survive-with-2)
+      // or s==4 AND currently alive (survive-with-3).
+      float c = texture2D(u_state, (cell + 0.5) / u_grid_size).r;
+      float born    = clamp(s - 2.0, 0.0, 1.0) - clamp(s - 3.0, 0.0, 1.0);
+      float survive = (clamp(s - 3.0, 0.0, 1.0) - clamp(s - 4.0, 0.0, 1.0)) * c;
+      float next    = clamp(born + survive, 0.0, 1.0);
+
+      gl_FragColor = vec4(next, 0.0, 0.0, 1.0);
+    }
+  </script>
+
+  <!-- display fragment shader: render state texture to screen -->
+  <script id="display-frag-shader" type="x-shader/x-fragment">
+    precision mediump float;
+    uniform sampler2D u_state;
+    uniform vec2 u_grid_size;
+    uniform vec2 u_cell_size;
+
+    void main() {
+      // Map screen pixel -> cell -> texture sample
+      vec2 cell  = floor(gl_FragCoord.xy / u_cell_size);
+      float alive = texture2D(u_state, (cell + 0.5) / u_grid_size).r;
+      float v    = 1.0 - alive;  // alive=black, dead=white
+      gl_FragColor = vec4(v, v, v, 1.0);
     }
   </script>
   <!--

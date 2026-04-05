@@ -3,293 +3,209 @@
 var cellWidth = 8;
 var cellHeight = cellWidth;
 const scene = document.createElement('canvas');
-const gl = scene.getContext("webgl", {antialias: false, preserveDrawingBuffer: false});
-if(!gl) {
+const gl = scene.getContext("webgl", { antialias: false, preserveDrawingBuffer: false });
+if (!gl) {
   document.write('WebGL is required for this example to work.');
 }
 
-function RenderEngine(world) {
-  // setup GLSL program
-  const program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
+function createTexture(w, h) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  return tex;
+}
 
-  // look up where the vertex data needs to go.
-  const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-  const texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
+function createFramebuffer(texture) {
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return fb;
+}
 
-  // look up uniform locations
-  const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
-  const colorUniformLocation = gl.getUniformLocation(program, "u_color");
+function RenderEngine() {
+  const computeProgram = webglUtils.createProgramFromScripts(gl, ["vert-shader", "compute-frag-shader"]);
+  const displayProgram = webglUtils.createProgramFromScripts(gl, ["vert-shader", "display-frag-shader"]);
 
-  // Create a buffer to put three 2d clip space points in
-  const positionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  // Fullscreen quad in clip space
+  const quadBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1, -1, 1, -1, -1, 1,
+    -1, 1, 1, -1, 1, 1,
+  ]), gl.STATIC_DRAW);
 
-  // Tell WebGL how to convert from clip space to pixels
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
-  // Tell it to use our program (pair of shaders)
-  gl.useProgram(program);
-
-  // Turn on the attribute
-  gl.enableVertexAttribArray(positionAttributeLocation);
-
-  // Bind the position buffer.
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-  // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-  const size = 2;          // 2 components per iteration
-  const type = gl.FLOAT;   // the data is 32bit floats
-  const normalize = false; // don't normalize the data
-  const stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
-  const offset = 0;        // start at the beginning of the buffer
-  gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset)
-
-  // set the resolution
-  gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
-
-  /**
-   * Clear the canvas
-   */
-  function _clear() {
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-  }
-
-  /**
-   * Render the world
-   */
-  function _render() {
-    const itr = world.collection();
-
-    // Clear grid for rendering
-    _clear();
-
-    let entity;
-    let i = itr.next();
-    while(!i.done) {
-      entity = i.value[1];
-      if(!entity) break;
-
-      // Load vertices
-      gl.bufferData(gl.ARRAY_BUFFER, entity.vertices(), gl.STATIC_DRAW);
-
-      // Set a random color.
-      gl.uniform4f(colorUniformLocation, 0, 0, 0, 1);
-
-      // Draw the rectangle.
-      var primitiveType = gl.TRIANGLES;
-      var offset = 0;
-      var count = 6;
-      gl.drawArrays(primitiveType, offset, count);
-      i = itr.next();
-    }
-  }
-
-  function _read(x, y) {
-    const format = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
-    const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
-    const pixelBuffer = new Uint8Array(4);
-    gl.readPixels(x * cellWidth, y * cellWidth, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
-    console.log(x, y, pixelBuffer);  
-  }
-
-  return {
-    clear: _clear,
-
-    read: _read,
-
-    render: _render
+  const computeLoc = {
+    position: gl.getAttribLocation(computeProgram, "a_position"),
+    state: gl.getUniformLocation(computeProgram, "u_state"),
+    gridSize: gl.getUniformLocation(computeProgram, "u_grid_size"),
   };
-}
+  const displayLoc = {
+    position: gl.getAttribLocation(displayProgram, "a_position"),
+    state: gl.getUniformLocation(displayProgram, "u_state"),
+    gridSize: gl.getUniformLocation(displayProgram, "u_grid_size"),
+    cellSize: gl.getUniformLocation(displayProgram, "u_cell_size"),
+  };
 
-function World(engine) {
-  const _collection = new Map();
+  let gridW, gridH;
+  let stateData;        // Uint8Array: R channel per cell, WebGL y-convention (y=0 at bottom)
+  let textures = [null, null];
+  let framebuffers = [null, null];
+  let current = 0;
 
-  function _getKey(entity) {
-    return Symbol.for([entity.x, entity.y]);
-  }
+  function _init() {
+    gridW = Math.floor(scene.width / cellWidth);
+    gridH = Math.floor(scene.height / cellHeight);
+    stateData = new Uint8Array(gridW * gridH);
 
-  return {
-
-    clear: () => {
-      const itr = _collection[Symbol.iterator]();
-      let key;
-      let i = itr.next();
-      while(!i.done) {
-        key = i.value[0];
-        _collection.delete(key);
-        i = itr.next();
-      }
-    },
-
-    add: (entity) => {
-      if(!entity) return;
-      _collection.set(_getKey(entity), entity);
-      return entity;
-    },
-
-    get: (x, y) => {
-      return _collection.get(Symbol.for([x, y]));
-    },
-
-    has: (x, y) => {
-      return !!_collection.get(Symbol.for([x, y]));
-    },
-
-    remove: (x, y) => {
-      _collection.delete(Symbol.for([x, y]));
-    },
-
-    collection: () => {
-      return _collection[Symbol.iterator]();
-    },
-
-    state: () => {
-      const list = [];
-      const itr = _collection[Symbol.iterator]();
-      let i = itr.next();
-      while(!i.done) {
-        list.push(i.value[1].coords());
-        i = itr.next();
-      }
-      return list;
+    for (let i = 0; i < 2; i++) {
+      if (textures[i]) gl.deleteTexture(textures[i]);
+      if (framebuffers[i]) gl.deleteFramebuffer(framebuffers[i]);
+      textures[i] = createTexture(gridW, gridH);
+      framebuffers[i] = createFramebuffer(textures[i]);
     }
-
+    current = 0;
+    _uploadState();
   }
-}
 
-function Entity(x, y, getVertices) {
+  function _uploadState() {
+    const rgba = new Uint8Array(gridW * gridH * 4);
+    for (let i = 0; i < gridW * gridH; i++) {
+      rgba[i * 4] = stateData[i];
+      rgba[i * 4 + 3] = 255;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, textures[current]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gridW, gridH, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+  }
+
+  function _bindQuad(positionLoc) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+    gl.enableVertexAttribArray(positionLoc);
+    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  // Run one Game of Life step entirely on GPU using convolution shader
+  function _step() {
+    const next = 1 - current;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[next]);
+    gl.viewport(0, 0, gridW, gridH);
+    gl.useProgram(computeProgram);
+    _bindQuad(computeLoc.position);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[current]);
+    gl.uniform1i(computeLoc.state, 0);
+    gl.uniform2f(computeLoc.gridSize, gridW, gridH);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    current = next;
+
+    // Sync GPU state back to CPU for interaction queries (getCell / getState)
+    const rgba = new Uint8Array(gridW * gridH * 4);
+    gl.readPixels(0, 0, gridW, gridH, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+    for (let i = 0; i < gridW * gridH; i++) {
+      stateData[i] = rgba[i * 4];
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  function _render() {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, scene.width, scene.height);
+    gl.useProgram(displayProgram);
+    _bindQuad(displayLoc.position);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[current]);
+    gl.uniform1i(displayLoc.state, 0);
+    gl.uniform2f(displayLoc.gridSize, gridW, gridH);
+    gl.uniform2f(displayLoc.cellSize, cellWidth, cellHeight);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  // x, y in CSS coordinates (y=0 at top); convert to WebGL y (y=0 at bottom) for texture storage
+  function _setCell(x, y, alive) {
+    if (x < 0 || x >= gridW || y < 0 || y >= gridH) return;
+    const ygl = gridH - 1 - y;
+    stateData[ygl * gridW + x] = alive ? 255 : 0;
+    const pixel = new Uint8Array([alive ? 255 : 0, 0, 0, 255]);
+    gl.bindTexture(gl.TEXTURE_2D, textures[current]);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, x, ygl, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+  }
+
+  function _getCell(x, y) {
+    if (x < 0 || x >= gridW || y < 0 || y >= gridH) return false;
+    return stateData[(gridH - 1 - y) * gridW + x] > 0;
+  }
+
+  // Return alive cells as [[x, y_css], ...] (CSS y convention for localStorage compatibility)
+  function _getState() {
+    const list = [];
+    for (let ygl = 0; ygl < gridH; ygl++) {
+      for (let x = 0; x < gridW; x++) {
+        if (stateData[ygl * gridW + x]) list.push([x, gridH - 1 - ygl]);
+      }
+    }
+    return list;
+  }
+
+  function _clear() {
+    stateData.fill(0);
+    _uploadState();
+  }
 
   return {
-
-    x: x,
-
-    y: y,
-
-    coords: () => {
-      return [x, y];
-    },
-
-    /**
-     * Builds tessellated vertices
-     */
-    vertices: getVertices
-  }
-}
-
-function Cell(x, y) {
-  const x1 = x * cellWidth;
-  const y1 = y * cellHeight;
-  const x2 = x1 + cellWidth;
-  const y2 = y1 + cellHeight;
-
-  return Entity(x, y, () => {
-    return new Float32Array([
-       x1, y1,
-       x2, y1,
-       x1, y2,
-       x1, y2,
-       x2, y1,
-       x2, y2,
-    ]);
-  });
+    init: _init,
+    step: _step,
+    render: _render,
+    setCell: _setCell,
+    getCell: _getCell,
+    getState: _getState,
+    clear: _clear,
+  };
 }
 
 // Application
 window.onload = () => {
   const localStorage = window.localStorage;
-  scene.id     = "scene";
-  scene.width  = window.innerWidth;
+  scene.id = "scene";
+  scene.width = window.innerWidth;
   scene.height = window.innerHeight;
   document.body.appendChild(scene);
+
   const btnClear = document.getElementById("btn_clear");
   const btnRun = document.getElementById("btn_run");
   const btnNext = document.getElementById("btn_next");
   const inputSpeed = document.getElementById("input_speed");
   const inputSize = document.getElementById("input_size");
-  const world = World();
-  const engine = RenderEngine(world);
 
-  // Inital parameters
-  if(localStorage.getItem('speed')) inputSpeed.value = localStorage.getItem('speed');
-  if(localStorage.getItem('cellWidth')) inputSize.value = localStorage.getItem('cellWidth');
+  if (localStorage.getItem('speed')) inputSpeed.value = localStorage.getItem('speed');
+  if (localStorage.getItem('cellWidth')) inputSize.value = localStorage.getItem('cellWidth');
 
-  let cell;
+  cellWidth = cellHeight = Math.max(1, parseFloat(inputSize.value));
+
+  const engine = RenderEngine();
+  engine.init();
+
   let isDrawing = null;
   let isRunning = false;
   let intervalLife;
   let speed = Math.max(1, parseInt(inputSpeed.value));
-  cellWidth = cellHeight = Math.max(1, parseFloat(inputSize.value));
 
   function _placeAt(x, y, isCreate) {
-    cell = Cell(x, y);
-    if((isDrawing === true || isCreate) && !world.has(x, y)) {
-      world.add(cell);
-    } else if(isDrawing === false) {
-      world.remove(x, y);
+    if ((isDrawing === true || isCreate) && !engine.getCell(x, y)) {
+      engine.setCell(x, y, true);
+    } else if (isDrawing === false) {
+      engine.setCell(x, y, false);
     }
     engine.render();
-    engine.read(x, y);
-    return cell;
   }
 
   function _stepLife() {
-
-    // TODO use change to use convolution filter
-
-    // Count neighbors
-    const neighborCounts = new Map();
-
-    // Build counts
-    const ii = world.collection()
-    let i = ii.next();
-    while(!i.done) {
-      let cell = i.value[1];
-
-      // Initialize each cell
-      neighborCounts.set(i.value[0], neighborCounts.get(i.value[0]) || 0);
-
-      // Add count to neighbors
-      [
-        [-1,-1],
-        [0,-1],
-        [1,-1],
-        [1,0],
-        [1,1],
-        [0,1],
-        [-1,1],
-        [-1,0],
-      ].forEach((coords) => {
-        const x = cell.x + coords[0];
-        const y = cell.y + coords[1];
-        const key = Symbol.for([x, y]);
-        let count = neighborCounts.get(key) || 0;
-        count++;
-        neighborCounts.set(key, count);
-      });
-      i = ii.next();
-    }
-
-    // Set next stage
-    let nn = neighborCounts[Symbol.iterator]();
-    let n = nn.next();
-    while(!n.done) {
-      let key = n.value[0];
-      let count = n.value[1];
-      let coords = Symbol.keyFor(key).split(',').map((i) => parseInt(i));
-      let cell = Cell.apply(null, coords);
-
-      if(world.has(coords[0], coords[1])) {
-        if(count <= 1 || count >= 4) {
-          world.remove(coords[0], coords[1]);
-        }
-      } else {
-        if(count == 3) {
-          world.add(Cell(coords[0], coords[1]));
-        }
-      }
-      n = nn.next()
-    }
+    engine.step();
     engine.render();
   }
 
@@ -297,7 +213,7 @@ window.onload = () => {
     clearInterval(intervalLife);
     btnRun.innerHTML = 'Run';
     isRunning = false;
-    console.log(JSON.stringify(world.state()));
+    console.log(JSON.stringify(engine.getState()));
   }
 
   function _startLife() {
@@ -308,69 +224,58 @@ window.onload = () => {
     isRunning = true;
   }
 
-  // Mouse cell placement
   scene.onmouseup = (e) => {
     isDrawing = null;
-    localStorage.setItem("world.state", JSON.stringify(world.state()));
+    localStorage.setItem("world.state", JSON.stringify(engine.getState()));
   };
   scene.onmousedown = (e) => {
     const x1 = Math.floor(e.x / cellWidth);
     const y1 = Math.floor(e.y / cellHeight);
-    isDrawing = !world.has(x1, y1);
+    isDrawing = !engine.getCell(x1, y1);
     _placeAt(x1, y1, true);
-  }
+  };
   scene.onmousemove = (e) => {
     const x1 = Math.floor(e.x / cellWidth);
     const y1 = Math.floor(e.y / cellHeight);
-    if(isDrawing !== null) {
-      _placeAt(x1, y1);
-    }
+    if (isDrawing !== null) _placeAt(x1, y1);
   };
 
-  // Controls
   btnClear.onmouseup = (e) => {
-    world.clear();
+    engine.clear();
     engine.render();
-    localStorage.removeItem("world.state")
+    localStorage.removeItem("world.state");
   };
   btnRun.onmouseup = (e) => {
-    if(!isRunning) _startLife();
+    if (!isRunning) _startLife();
     else _stopLife();
   };
   btnNext.onmouseup = _stepLife;
   inputSpeed.onchange = (e) => {
     speed = Math.max(1, parseInt(inputSpeed.value));
     localStorage.setItem("speed", speed);
-    if(isRunning) {
-      _stepLife();
-      _startLife();
-    }
+    if (isRunning) { _stepLife(); _startLife(); }
   };
   inputSize.onchange = (e) => {
     cellWidth = cellHeight = Math.max(1, parseFloat(inputSize.value));
     localStorage.setItem("cellWidth", cellWidth);
-    const list = world.state();
-    world.clear();
-    list.forEach((coords) => {
-      world.add(Cell(coords[0], coords[1]));
-    });
+    const list = engine.getState();
+    engine.init();
+    list.forEach(([x, y]) => engine.setCell(x, y, true));
     engine.render();
   };
 
-  // Initial state
-  const initX = Math.floor(500.0/cellWidth);
-  const initY = Math.floor(200.0/cellHeight);
+  const initX = Math.floor(500.0 / cellWidth);
+  const initY = Math.floor(200.0 / cellHeight);
   const storedState = JSON.parse(localStorage.getItem("world.state"));
   const initialState = storedState || [
-    [initX+1, initY],
-    [initX, initY+2],
-    [initX+1, initY+2],
-    [initX+3, initY+1],
-    [initX+4, initY+2],
-    [initX+5, initY+2],
-    [initX+6, initY+2],
+    [initX + 1, initY],
+    [initX, initY + 2],
+    [initX + 1, initY + 2],
+    [initX + 3, initY + 1],
+    [initX + 4, initY + 2],
+    [initX + 5, initY + 2],
+    [initX + 6, initY + 2],
   ];
-  initialState.forEach((coords) => {
-    _placeAt(coords[0], coords[1], true);
-  });
+  initialState.forEach(([x, y]) => engine.setCell(x, y, true));
+  engine.render();
 };
