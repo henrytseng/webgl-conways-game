@@ -240,6 +240,29 @@ window.onload = () => {
     if (isDrawing !== null) _placeAt(x1, y1);
   };
 
+  scene.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = scene.getBoundingClientRect();
+    const x1 = Math.floor((touch.clientX - rect.left) / cellWidth);
+    const y1 = Math.floor((touch.clientY - rect.top) / cellHeight);
+    isDrawing = !engine.getCell(x1, y1);
+    _placeAt(x1, y1, true);
+  }, { passive: false });
+  scene.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = scene.getBoundingClientRect();
+    const x1 = Math.floor((touch.clientX - rect.left) / cellWidth);
+    const y1 = Math.floor((touch.clientY - rect.top) / cellHeight);
+    if (isDrawing !== null) _placeAt(x1, y1);
+  }, { passive: false });
+  scene.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    isDrawing = null;
+    localStorage.setItem("world.state", JSON.stringify(engine.getState()));
+  }, { passive: false });
+
   btnClear.onmouseup = (e) => {
     engine.clear();
     engine.render();
